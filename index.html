@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nuestro Nido</title>
+<meta name="description" content="Planeen juntos su independencia: cuestionario, bote común, gastos y metas. Funciona sin internet.">
+<meta name="theme-color" content="#FFB321" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17162A" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nuestro Nido">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <span class="brand"><img src="icons/favicon-32.png" alt="" width="26" height="26"> Nuestro Nido</span>
+    <span class="offline" id="offline" hidden>Sin conexión · todo sigue funcionando</span>
+  </div>
+</header>
+
+<main class="wrap" id="view" tabindex="-1"></main>
+
+<nav class="tabs" aria-label="Secciones">
+  <a href="#inicio" data-tab="inicio"><span aria-hidden="true">🏡</span>Inicio</a>
+  <a href="#plan" data-tab="plan"><span aria-hidden="true">💬</span>Plan</a>
+  <a href="#bote" data-tab="bote"><span aria-hidden="true">🫙</span>Bote</a>
+  <a href="#gastos" data-tab="gastos"><span aria-hidden="true">🧾</span>Gastos</a>
+  <a href="#metas" data-tab="metas"><span aria-hidden="true">🎯</span>Metas</a>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="data.js"></script>
+<script src="pdf.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

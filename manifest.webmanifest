@@ -1,0 +1,17 @@
+{
+  "name": "Nuestro Nido",
+  "short_name": "Nido",
+  "description": "Planeen juntos su independencia: cuestionario, bote común, gastos y metas.",
+  "lang": "es-MX",
+  "start_url": "./#inicio",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF8EC",
+  "theme_color": "#FFB321",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
