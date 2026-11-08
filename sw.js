@@ -1,5 +1,5 @@
 // Service worker: guarda la app completa en el teléfono para que funcione sin internet.
-const VERSION = "nido-v1.0.0";
+const VERSION = "nido-v1.1.0";
 const FILES = [
   "./",
   "index.html",

@@ -22,12 +22,74 @@ function freshState() {
 }
 let S;
 try { S = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { S = null; }
-if (!S || S.v !== 1) S = freshState();
+const startedEmpty = !S || S.v !== 1;
+if (startedEmpty) S = freshState();
 S.ui = S.ui || { cat: "hablar", month: monthKey(new Date()) };
 
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch (e) { toast("No se pudo guardar. Revisen el espacio del teléfono."); }
+  scheduleSnap();
+}
+
+/* ---------- Copias automáticas (IndexedDB, separado del guardado normal) ----------
+   Una copia por día (últimos 14 días) y una por mes (últimos 6 meses). */
+const SNAP_DAYS = 14, SNAP_MONTHS = 6;
+let dbP = null;
+function db() {
+  if (!dbP) dbP = new Promise((res, rej) => {
+    if (!("indexedDB" in window)) return rej(new Error("sin IndexedDB"));
+    const r = indexedDB.open("nido-copias", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("snaps", { keyPath: "id" });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return dbP;
+}
+function store(mode) { return db().then((d) => d.transaction("snaps", mode).objectStore("snaps")); }
+const req = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function listSnaps() {
+  try { return (await req((await store("readonly")).getAll())).sort((a, b) => b.at - a.at); }
+  catch (e) { return []; }
+}
+async function takeSnap() {
+  if (S.example && !S.tx.length && !Object.keys(S.answers).length) return; // no copiar datos de ejemplo sin tocar
+  try {
+    const now = new Date(), day = todayISO(), data = JSON.parse(JSON.stringify(S));
+    const st = await store("readwrite");
+    st.put({ id: "d-" + day, kind: "día", at: now.getTime(), data });
+    st.put({ id: "m-" + day.slice(0, 7), kind: "mes", at: now.getTime(), data });
+    const all = await listSnaps();
+    const drop = [...all.filter((s) => s.kind === "día").slice(SNAP_DAYS), ...all.filter((s) => s.kind === "mes").slice(SNAP_MONTHS)];
+    if (drop.length) { const st2 = await store("readwrite"); drop.forEach((s) => st2.delete(s.id)); }
+  } catch (e) { /* si el navegador no permite copias, la app sigue funcionando */ }
+}
+let snapT;
+function scheduleSnap() { clearTimeout(snapT); snapT = setTimeout(takeSnap, 1500); }
+document.addEventListener("visibilitychange", () => { if (document.hidden) { clearTimeout(snapT); takeSnap(); } });
+
+function snapSummary(d) {
+  const a = Object.values(d.answers || {}).filter((x) => x.d).length;
+  return `${(d.tx || []).length} movimientos · ${(d.goals || []).length} metas · ${a} respuestas`;
+}
+function whenLabel(ms) {
+  const d = new Date(ms), t = new Date(), y = new Date(); y.setDate(t.getDate() - 1);
+  const hm = d.toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === t.toDateString()) return "Hoy, " + hm;
+  if (d.toDateString() === y.toDateString()) return "Ayer, " + hm;
+  return d.toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" }) + ", " + hm;
+}
+async function fillSnaps() {
+  const box = document.getElementById("snaps"); if (!box) return;
+  const all = await listSnaps();
+  if (!document.body.contains(box)) return;
+  if (!all.length) { box.innerHTML = `<p class="muted small">Aún no hay copias. La primera se hace sola en cuanto anoten o cambien algo.</p>`; return; }
+  box.innerHTML = all.map((s) => `
+    <div class="snap" data-sid="${s.id}">
+      <div style="min-width:0"><b>${s.kind === "mes" ? "📅 Copia del mes" : s.kind === "previo" ? "↩️ Antes de restaurar" : "🗓️ " + whenLabel(s.at)}</b>
+        <small class="muted" style="display:block">${s.kind !== "día" ? whenLabel(s.at) + " · " : ""}${snapSummary(s.data)}</small></div>
+      <button class="btn small" data-act="snapask">Restaurar</button>
+    </div>`).join("");
 }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
@@ -150,7 +212,7 @@ inicio() {
       <a class="btn" href="#ajustes">⚙️ Ajustes y respaldo</a>
     </div>
   </div>
-  <p class="muted small">Todo lo que escriben se guarda solo en este teléfono. Hagan un respaldo de vez en cuando desde Ajustes.</p>`;
+  <p class="muted small">🛟 La app guarda sola una copia diaria en este teléfono. Para cambiar de celular, usen <b>Guardar respaldo</b> en Ajustes.</p>`;
 },
 
 plan() {
@@ -339,6 +401,11 @@ ajustes() {
       <label class="btn" for="restore">📂 Cargar respaldo</label><input type="file" id="restore" accept="application/json,.json" hidden></div>
     <p class="muted small">El respaldo es un archivo que pueden guardar en Drive, iCloud o mandarse por WhatsApp. Con él pasan sus datos a otro teléfono.</p>
   </div>
+  <div class="card" style="${css("mint")}"><h3>🛟 Copias automáticas</h3>
+    <p class="muted small">La app guarda sola una copia cada día (últimos ${SNAP_DAYS} días) y una por mes (últimos ${SNAP_MONTHS} meses). Si borran algo sin querer, regresen a una copia anterior.</p>
+    <div id="snaps" class="snaps"><p class="muted small">Buscando copias…</p></div>
+    <p class="small" style="color:var(--warn-ink)">⚠️ Estas copias viven en este teléfono. Si borran la app o cambian de celular, usen <b>Guardar respaldo</b>.</p>
+  </div>
   <details class="box"><summary>📲 Cómo instalarla en el teléfono</summary><div class="small">
     <p><b>iPhone (Safari):</b> abran la página, toquen el botón Compartir y elijan "Agregar a pantalla de inicio".</p>
     <p><b>Android (Chrome):</b> abran la página, toquen el menú ⋮ y elijan "Instalar app" o "Agregar a pantalla principal".</p>
@@ -347,7 +414,7 @@ ajustes() {
   <details class="box"><summary>📚 Fuentes de los datos</summary><div class="small"><ul style="margin:0;padding-left:18px;display:grid;gap:4px">${SOURCES.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
     <p class="muted">La parte legal es orientación general y cambia según el estado. Para decisiones concretas, consulten a un abogado o notario.</p></div></details>
   <div class="card" style="border-color:var(--coral);box-shadow:4px 4px 0 var(--coral)" id="wipeBox">
-    <h3>Borrar todo</h3><p class="muted small">Quita respuestas, gastos y metas de este teléfono.</p>
+    <h3>Borrar todo</h3><p class="muted small">Quita respuestas, gastos y metas de este teléfono. Las copias automáticas se conservan por si se arrepienten.</p>
     <button class="btn small ghost" data-act="wipe" style="justify-self:start">Borrar todos mis datos</button>
   </div>`;
 }
@@ -363,6 +430,7 @@ function render(keepScroll) {
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
   window.scrollTo(0, keepScroll ? y : 0);
+  if (name === "ajustes") fillSnaps();
 }
 window.addEventListener("hashchange", () => render(false));
 
@@ -390,6 +458,23 @@ view.addEventListener("click", (e) => {
   }
   else if (act === "wipeyes") { S = freshState(); save(); location.hash = "#inicio"; render(false); toast("Listo, empezaron de cero"); }
   else if (act === "wipeno") { render(true); }
+  else if (act === "snapask") {
+    const row = el.closest("[data-sid]");
+    el.outerHTML = `<span class="row" style="gap:6px"><button class="btn small primary" data-act="snapyes">Sí, restaurar</button><button class="btn small ghost" data-act="snapno">No</button></span>`;
+    row.querySelector("small").insertAdjacentHTML("afterend", `<small style="display:block;color:var(--warn-ink);font-weight:700">Lo de ahora se reemplaza por esta copia. Antes guardamos lo actual por si acaso.</small>`);
+  }
+  else if (act === "snapno") { fillSnaps(); }
+  else if (act === "snapyes") {
+    const id = el.closest("[data-sid]").dataset.sid;
+    (async () => {
+      const all = await listSnaps(), snap = all.find((s) => s.id === id);
+      if (!snap) { toast("No encontramos esa copia"); fillSnaps(); return; }
+      try { (await store("readwrite")).put({ id: "p-previo", kind: "previo", at: Date.now(), data: JSON.parse(JSON.stringify(S)) }); } catch (e) {}
+      S = JSON.parse(JSON.stringify(snap.data)); S.example = false;
+      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+      render(true); toast("Copia restaurada ✅");
+    })();
+  }
 });
 
 view.addEventListener("change", (e) => {
@@ -484,4 +569,15 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 }
 
 render(false);
+
+// Si el guardado normal se perdió pero hay copias automáticas, se recupera la más reciente.
+if (startedEmpty) {
+  listSnaps().then((all) => {
+    const last = all.find((s) => s.kind === "día") || all[0];
+    if (!last) return;
+    S = JSON.parse(JSON.stringify(last.data));
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+    render(false); toast("Recuperamos su última copia automática 🛟");
+  });
+}
 })();

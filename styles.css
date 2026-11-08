@@ -156,6 +156,10 @@ textarea.input{font-weight:400;min-height:48px;resize:vertical;border-style:dash
 .tx .d b{display:block;overflow-wrap:anywhere}
 .tx .m{font-weight:800;font-variant-numeric:tabular-nums}
 
+.snaps{display:grid;gap:0}
+.snap{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-block:10px;border-bottom:1.5px dashed var(--line);flex-wrap:wrap}
+.snap:last-child{border-bottom:none}
+
 /* Metas */
 .goal{display:grid;grid-template-columns:76px 1fr;gap:14px;align-items:center}
 .goal svg{width:76px;height:76px}
